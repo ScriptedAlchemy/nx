@@ -2,7 +2,7 @@ import { stripIndents } from '@nrwl/devkit';
 import {
   checkFilesExist,
   cleanupProject,
-  killPort,
+  killProcessAndPorts,
   newProject,
   readProjectConfig,
   runCLI,
@@ -15,9 +15,9 @@ import {
 describe('React Module Federation', () => {
   let proj: string;
 
-  beforeEach(() => (proj = newProject()));
+  beforeAll(() => (proj = newProject()));
 
-  afterEach(() => cleanupProject());
+  afterAll(() => cleanupProject());
 
   it('should generate host and remote apps', async () => {
     const shell = uniq('shell');
@@ -105,7 +105,7 @@ describe('React Module Federation', () => {
     //   const e2eResults = runCLI(`e2e ${shell}-e2e --no-watch --verbose`);
     //   expect(e2eResults).toContain('All specs passed!');
     //   expect(
-    //     await killPorts([
+    //     await killProcessAndPorts(undefined, [
     //       readPort(shell),
     //       readPort(remote1),
     //       readPort(remote2),
@@ -120,7 +120,3 @@ describe('React Module Federation', () => {
     return config.targets.serve.options.port;
   }
 });
-
-function killPorts(ports: number[]): Promise<boolean[]> {
-  return Promise.all(ports.map((p) => killPort(p)));
-}
