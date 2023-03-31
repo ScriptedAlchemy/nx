@@ -34,8 +34,8 @@ export async function createEmptyWorkspace<T extends CreateWorkspaceOptions>(
   }
 
   const args = unparse({
-    preset,
     ...options,
+    preset,
   }).join(' ');
 
   const pmc = getPackageManagerCommand(packageManager);

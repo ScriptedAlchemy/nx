@@ -17,19 +17,18 @@ import {
   detectInvokedPackageManager,
   PackageManager,
 } from './detect-invoked-package-manager';
-import enquirer = require('enquirer');
+import * as enquirer from 'enquirer';
 import yargsParser = require('yargs-parser');
 
 const nxVersion = require('../package.json').version;
-const tsVersion = 'TYPESCRIPT_VERSION'; // This gets replaced with the typescript version in the root package.json during build
-const prettierVersion = 'PRETTIER_VERSION'; // This gets replaced with the prettier version in the root package.json during build
 
-const parsedArgs = yargsParser(process.argv, {
-  string: ['pluginName', 'packageManager', 'importPath'],
+const parsedArgs: yargsParser.Arguments = yargsParser(process.argv, {
+  string: ['pluginName', 'packageManager', 'importPath', 'createPackageName'],
   alias: {
     importPath: 'import-path',
     pluginName: 'plugin-name',
     packageManager: 'pm',
+    createPackageName: 'create-package-name',
   },
   boolean: ['help'],
 });
@@ -41,8 +40,6 @@ function createSandbox(packageManager: string) {
     dependencies: {
       '@nrwl/workspace': nxVersion,
       nx: nxVersion,
-      typescript: tsVersion,
-      prettier: prettierVersion,
     },
     license: 'MIT',
   });
@@ -55,7 +52,7 @@ function createSandbox(packageManager: string) {
   return tmpDir;
 }
 
-function createWorkspace(
+function createEmptyWorkspace(
   tmpDir: string,
   packageManager: PackageManager,
   parsedArgs: any,
@@ -92,17 +89,25 @@ function createWorkspace(
 }
 
 function createNxPlugin(
-  workspaceName,
-  pluginName,
-  packageManager,
-  parsedArgs: any
+  workspaceName: string,
+  pluginName: string,
+  packageManager: PackageManager,
+  createPackageName: string,
+  parsedArgs: yargsParser.Arguments
 ) {
-  const importPath = parsedArgs.importPath ?? `@${workspaceName}/${pluginName}`;
-  const command = `nx generate @nrwl/nx-plugin:plugin ${pluginName} --importPath=${importPath}`;
-  console.log(command);
-
   const pmc = getPackageManagerCommand(packageManager);
-  execSync(`${pmc.exec} ${command}`, {
+
+  const importPath = parsedArgs.importPath ?? `@${workspaceName}/${pluginName}`;
+  const generatePluginCommand = `nx generate @nrwl/nx-plugin:plugin ${pluginName} --importPath=${importPath}`;
+  console.log(generatePluginCommand);
+  execSync(`${pmc.exec} ${generatePluginCommand}`, {
+    cwd: workspaceName,
+    stdio: [0, 1, 2],
+  });
+
+  const createPackageCommand = `nx generate @nrwl/nx-plugin:create-package ${createPackageName} --project=${pluginName}`;
+  console.log(createPackageCommand);
+  execSync(`${pmc.exec} ${createPackageCommand}`, {
     cwd: workspaceName,
     stdio: [0, 1, 2],
   });
@@ -123,56 +128,52 @@ function updateWorkspace(workspaceName: string) {
   rmSync(path.join(workspaceName, 'libs'), { recursive: true, force: true });
 }
 
-function determineWorkspaceName(parsedArgs: any): Promise<string> {
-  const workspaceName: string = parsedArgs._[2];
+async function determineWorkspaceName(
+  parsedArgs: yargsParser.Arguments
+): Promise<string> {
+  const workspaceName = parsedArgs._[2] as string;
 
   if (workspaceName) {
     return Promise.resolve(workspaceName);
   }
 
-  return enquirer
-    .prompt([
-      {
-        name: 'WorkspaceName',
-        message: `Workspace name (e.g., org name)    `,
-        type: 'input',
-      },
-    ])
-    .then((a: { WorkspaceName: string }) => {
-      if (!a.WorkspaceName) {
-        output.error({
-          title: 'Invalid workspace name',
-          bodyLines: [`Workspace name cannot be empty`],
-        });
-        process.exit(1);
-      }
-      return a.WorkspaceName;
+  const results = await enquirer.prompt<{ workspaceName: string }>([
+    {
+      name: 'workspaceName',
+      message: `Workspace name (e.g., org name)    `,
+      type: 'input',
+    },
+  ]);
+  if (!results.workspaceName) {
+    output.error({
+      title: 'Invalid workspace name',
+      bodyLines: [`Workspace name cannot be empty`],
     });
+    process.exit(1);
+  }
+  return results.workspaceName;
 }
 
-function determinePluginName(parsedArgs) {
+async function determinePluginName(parsedArgs) {
   if (parsedArgs.pluginName) {
     return Promise.resolve(parsedArgs.pluginName);
   }
 
-  return enquirer
-    .prompt([
-      {
-        name: 'PluginName',
-        message: `Plugin name                        `,
-        type: 'input',
-      },
-    ])
-    .then((a: { PluginName: string }) => {
-      if (!a.PluginName) {
-        output.error({
-          title: 'Invalid name',
-          bodyLines: [`Name cannot be empty`],
-        });
-        process.exit(1);
-      }
-      return a.PluginName;
+  const results = await enquirer.prompt<{ pluginName: string }>([
+    {
+      name: 'pluginName',
+      message: `Plugin name                        `,
+      type: 'input',
+    },
+  ]);
+  if (!results.pluginName) {
+    output.error({
+      title: 'Invalid name',
+      bodyLines: [`Name cannot be empty`],
     });
+    process.exit(1);
+  }
+  return results.pluginName;
 }
 
 function showHelp() {
@@ -191,21 +192,30 @@ function showHelp() {
 `);
 }
 
-if (parsedArgs.help) {
-  showHelp();
-  process.exit(0);
+export async function main() {
+  if (parsedArgs.help) {
+    showHelp();
+    process.exit(0);
+  }
+
+  const packageManager: PackageManager =
+    parsedArgs.packageManager || detectInvokedPackageManager();
+  const workspaceName = await determineWorkspaceName(parsedArgs);
+  const pluginName = await determinePluginName(parsedArgs);
+  const createPackageName =
+    parsedArgs.createPackageName || `create-${pluginName}-package`;
+  const tmpDir = createSandbox(packageManager);
+  createEmptyWorkspace(tmpDir, packageManager, parsedArgs, workspaceName);
+  updateWorkspace(workspaceName);
+  createNxPlugin(
+    workspaceName,
+    pluginName,
+    packageManager,
+    createPackageName,
+    parsedArgs
+  );
+  await initializeGitRepo(workspaceName);
+  showNxWarning(workspaceName);
 }
 
-const packageManager: PackageManager =
-  parsedArgs.packageManager || detectInvokedPackageManager();
-determineWorkspaceName(parsedArgs).then((workspaceName) => {
-  return determinePluginName(parsedArgs).then((pluginName) => {
-    const tmpDir = createSandbox(packageManager);
-    createWorkspace(tmpDir, packageManager, parsedArgs, workspaceName);
-    updateWorkspace(workspaceName);
-    createNxPlugin(workspaceName, pluginName, packageManager, parsedArgs);
-    return initializeGitRepo(workspaceName).then(() => {
-      showNxWarning(workspaceName);
-    });
-  });
-});
+main();

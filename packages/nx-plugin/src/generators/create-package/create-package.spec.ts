@@ -54,6 +54,7 @@ describe('NxPlugin Create Package Generator', () => {
         tsConfig: 'libs/create-package/tsconfig.lib.json',
         main: 'libs/create-package/bin/index.ts',
         assets: [],
+        buildableProjectDepsInPackageJsonType: 'dependencies',
       },
     });
   });

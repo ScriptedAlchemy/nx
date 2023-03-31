@@ -72,7 +72,7 @@ function updateWorkspaceConfiguration(host: Tree, options: NormalizedSchema) {
   addProjectConfiguration(host, options.projectName, {
     root: options.projectRoot,
     projectType: 'application',
-    sourceRoot: `${options.projectRoot}/src`,
+    sourceRoot: `${options.projectRoot}/tests`,
     targets: {
       e2e: {
         executor: '@nrwl/nx-plugin:e2e',

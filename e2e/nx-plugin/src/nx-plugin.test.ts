@@ -426,4 +426,13 @@ describe('Nx Plugin', () => {
       `dist/libs/${createAppName}/bin/index.js`
     );
   });
+
+  it('should throw an error when run create-package for an invalid plugin ', async () => {
+    const plugin = uniq('plugin');
+    expect(() =>
+      runCLI(
+        `generate @nrwl/nx-plugin:create-package ${plugin} --project=invalid-plugin`
+      )
+    ).toThrow();
+  });
 });

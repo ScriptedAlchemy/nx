@@ -36,12 +36,19 @@ export async function createPackageGenerator(
   );
 
   await createCliPackage(host, options, pluginPackageName);
+  addTestsToE2eProject(host, options, pluginPackageName);
 
   await formatFiles(host);
 
   return installTask;
 }
 
+/**
+ * Add a preset generator to the plugin if it doesn't exist
+ * @param host
+ * @param schema
+ * @returns package name of the plugin
+ */
 async function addPresetGenerator(
   host: Tree,
   schema: NormalizedSchema
@@ -80,6 +87,11 @@ async function createCliPackage(
   packageJson.bin = {
     [options.name]: './bin/index.js',
   };
+  packageJson.dependencies = {
+    'create-nx-workspace': nxVersion,
+    enquirer: enquirerVersion,
+    yargs: yargsVersion,
+  };
   host.write(packageJsonPath, JSON.stringify(packageJson));
 
   // update project build target to use the bin entry
@@ -92,6 +104,8 @@ async function createCliPackage(
     options.projectRoot,
     'bin/index.ts'
   );
+  projectConfiguration.targets.build.options.buildableProjectDepsInPackageJsonType =
+    'dependencies';
   updateProjectConfiguration(host, options.projectName, projectConfiguration);
 
   // Add bin files to tsconfg.lib.json
@@ -110,6 +124,39 @@ async function createCliPackage(
       tmpl: '',
     }
   );
+}
+
+/**
+ * Add a test file to plugin e2e project
+ * @param host
+ * @param options
+ * @returns
+ */
+function addTestsToE2eProject(
+  host: Tree,
+  options: NormalizedSchema,
+  pluginPackageName: string
+) {
+  try {
+    const pluginE2eProjectName = `${options.project}-e2e`;
+    const projectConfiguration = readProjectConfiguration(
+      host,
+      pluginE2eProjectName
+    );
+    generateFiles(
+      host,
+      join(__dirname, './files/e2e'),
+      projectConfiguration.sourceRoot,
+      {
+        ...options,
+        preset: pluginPackageName,
+        tmpl: '',
+      }
+    );
+  } catch (e) {
+    // if e2e project does not exist, do not add tests
+    return;
+  }
 }
 
 export default createPackageGenerator;

@@ -14,9 +14,13 @@ export const commandsObject: yargs.Argv<Options> = yargs
   .command(
     // this is the default and only command
     '$0 [name] [options]',
-    'Create a new Nx workspace',
+    'Create a new <%= preset %> workspace',
     (yargs) =>
       yargs
+        .options('preset', {
+          describe: 'Preset to use',
+          type: 'string',
+        })
         .option('name', {
           describe: 'What is the name of your workspace?',
           type: 'string',
@@ -85,7 +89,10 @@ async function normalizeArgsMiddleware(argv: yargs.Arguments<Options>) {
 }
 
 async function main(options: Options) {
-  await createWorkspace<Options>('<%= preset %>', options);
+  // Update below to customize the workspace
+  await createWorkspace<Options>(options.preset ?? '<%= preset %>', options);
 
-  console.log(`Successfully created the <%= preset %> workspace: ${options.name}.`);
+  console.log(
+    `Successfully created the <%= preset %> workspace: ${options.name}.`
+  );
 }
